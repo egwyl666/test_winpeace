@@ -76,4 +76,38 @@ Sec "Installed AV/EDR services (visibility check)"
 Get-Service | Where-Object { $_.DisplayName -match '(?i)defender|sense|edr|wazuh|crowdstrike|sentinel|carbon' } |
   Select Name, DisplayName, Status | Format-Table -Auto
 
+Sec "Defender exclusion paths (where a dropped tool could hide)"
+try { (Get-MpPreference).ExclusionPath } catch {}
+
+Sec "WDigest (plaintext creds cached in LSASS memory if enabled)"
+$v = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -ErrorAction SilentlyContinue).UseLogonCredential
+"  UseLogonCredential = $v (1 = plaintext creds cached)"
+
+Sec "LSA Protection (RunAsPPL)"
+$v = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -ErrorAction SilentlyContinue).RunAsPPL
+"  RunAsPPL = $v (empty/0 = LSASS not protected)"
+
+Sec "Credential Guard"
+$v = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name LsaCfgFlags -ErrorAction SilentlyContinue).LsaCfgFlags
+"  LsaCfgFlags = $v (empty/0 = Credential Guard off)"
+
+Sec "Cached logon count policy"
+$v = (Get-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name CachedLogonsCount -ErrorAction SilentlyContinue).CachedLogonsCount
+"  CachedLogonsCount = $v"
+
+Sec "UAC settings"
+Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System' -ErrorAction SilentlyContinue |
+  Select EnableLUA, ConsentPromptBehaviorAdmin, LocalAccountTokenFilterPolicy | Format-List
+
+Sec "PowerShell audit logging status (are we even visible right now?)"
+$sb = (Get-ItemProperty 'HKLM:\Software\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -ErrorAction SilentlyContinue).EnableScriptBlockLogging
+$tr = (Get-ItemProperty 'HKLM:\Software\Policies\Microsoft\Windows\PowerShell\Transcription' -Name EnableTranscripting -ErrorAction SilentlyContinue).EnableTranscripting
+$ml = (Get-ItemProperty 'HKLM:\Software\Policies\Microsoft\Windows\PowerShell\ModuleLogging' -Name EnableModuleLogging -ErrorAction SilentlyContinue).EnableModuleLogging
+"  ScriptBlockLogging=$sb  Transcription=$tr  ModuleLogging=$ml"
+
+Sec "WSUS over plain HTTP (classic MITM/privesc vector)"
+$wu = Get-ItemProperty 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate' -ErrorAction SilentlyContinue
+$waserver = (Get-ItemProperty 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name UseWUServer -ErrorAction SilentlyContinue).UseWUServer
+"  WUServer = $($wu.WUServer)  UseWUServer = $waserver"
+
 Write-Host "`n===== winpeas-lite done ($Marker) =====" -ForegroundColor Green
